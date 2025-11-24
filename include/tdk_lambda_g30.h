@@ -5,8 +5,7 @@
  * @date 2025-11-24
  *
  * Professional C++ interface for controlling TDK Lambda G30 series power supplies.
- * Supports voltage and current control via serial (RS232/USB) or Ethernet (TCP/IP)
- * communication using SCPI commands.
+ * Supports voltage and current control via Ethernet (TCP/IP) communication using SCPI commands.
  *
  * @author Professional Power Supply Control Library
  * @copyright MIT License
@@ -45,7 +44,7 @@ public:
  * @brief Communication interface for abstraction
  *
  * This allows for dependency injection and easier testing.
- * Supports both serial port and Ethernet communication.
+ * Supports Ethernet (TCP/IP) communication.
  */
 class ICommunication {
 public:
@@ -78,28 +77,9 @@ public:
 };
 
 /**
- * @brief Legacy serial port interface (kept for backward compatibility)
- *
- * This allows for dependency injection and easier testing
- */
-class ISerialPort : public ICommunication {
-public:
-    virtual ~ISerialPort() = default;
-};
-
-/**
  * @brief Configuration structure for TDK Lambda G30
  */
 struct G30Config {
-    ConnectionType connectionType;  ///< Connection type (SERIAL or ETHERNET)
-
-    // Serial port settings
-    std::string port;           ///< Serial port (e.g., "/dev/ttyUSB0" or "COM3")
-    int baudRate;               ///< Baud rate (default: 9600)
-    int dataBits;               ///< Data bits (default: 8)
-    int stopBits;               ///< Stop bits (default: 1)
-    char parity;                ///< Parity ('N': none, 'E': even, 'O': odd)
-
     // Ethernet settings
     std::string ipAddress;      ///< IP address (e.g., "192.168.1.100")
     int tcpPort;                ///< TCP port (default: 8003 for TDK Lambda G30)
@@ -108,13 +88,7 @@ struct G30Config {
     int timeout_ms;             ///< Communication timeout in milliseconds
 
     G30Config()
-        : connectionType(ConnectionType::SERIAL),
-          port(""),
-          baudRate(9600),
-          dataBits(8),
-          stopBits(1),
-          parity('N'),
-          ipAddress(""),
+        : ipAddress(""),
           tcpPort(8003),  // TDK Lambda G30 default TCP port
           timeout_ms(1000) {}
 };
@@ -123,7 +97,7 @@ struct G30Config {
  * @brief Main controller class for TDK Lambda G30 Power Supply
  *
  * This class provides a clean, modern C++ interface for controlling
- * TDK Lambda G30 series programmable power supplies.
+ * TDK Lambda G30 series programmable power supplies via Ethernet.
  *
  * Implements the generic IPowerSupply interface while providing
  * TDK Lambda G30 specific features and optimizations.
@@ -131,16 +105,15 @@ struct G30Config {
  * Features:
  * - RAII-compliant resource management
  * - Exception-based error handling
- * - Dependency injection for serial communication
+ * - Ethernet (TCP/IP) communication
  * - Thread-safe operations (when used with proper locking)
  * - Full SCPI command support
  * - Generic PowerSupply interface compliance
  *
  * Example usage:
  * @code
- * G30Config config;
- * config.port = "/dev/ttyUSB0";
- * config.baudRate = 9600;
+ * auto psu = createG30Ethernet("192.168.1.100", 8003);
+ * psu->connect();
  *
  * TDKLambdaG30 psu(config);
  * psu.connect();
@@ -163,13 +136,6 @@ public:
      * @param config Configuration parameters
      */
     TDKLambdaG30(std::unique_ptr<ICommunication> commPort, const G30Config& config);
-
-    /**
-     * @brief Construct with custom serial port implementation (backward compatibility)
-     * @param serialPort Custom serial port implementation
-     * @param config Configuration parameters
-     */
-    TDKLambdaG30(std::unique_ptr<ISerialPort> serialPort, const G30Config& config);
 
     /**
      * @brief Destructor - ensures proper cleanup
@@ -464,28 +430,12 @@ private:
 // ==================== Factory Functions ====================
 
 /**
- * @brief Factory function to create TDKLambdaG30 instance with serial port
- * @param port Serial port name (e.g., "/dev/ttyUSB0" or "COM3")
- * @param baudRate Baud rate (default: 9600)
- * @return Unique pointer to TDKLambdaG30 instance
- */
-std::unique_ptr<TDKLambdaG30> createG30Serial(const std::string& port, int baudRate = 9600);
-
-/**
  * @brief Factory function to create TDKLambdaG30 instance with Ethernet
  * @param ipAddress IP address (e.g., "192.168.1.100")
  * @param tcpPort TCP port (default: 8003 for TDK Lambda G30)
  * @return Unique pointer to TDKLambdaG30 instance
  */
 std::unique_ptr<TDKLambdaG30> createG30Ethernet(const std::string& ipAddress, int tcpPort = 8003);
-
-/**
- * @brief Legacy factory function (uses serial port)
- * @param port Serial port name
- * @param baudRate Baud rate (default: 9600)
- * @return Unique pointer to TDKLambdaG30 instance
- */
-std::unique_ptr<TDKLambdaG30> createG30(const std::string& port, int baudRate = 9600);
 
 } // namespace TDKLambda
 

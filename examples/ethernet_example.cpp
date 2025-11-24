@@ -87,7 +87,6 @@ void manualConfigExample() {
     try {
         // Konfigürasyonu manuel oluştur
         G30Config config;
-        config.connectionType = ConnectionType::ETHERNET;
         config.ipAddress = "192.168.1.100";
         config.tcpPort = 8003;
         config.timeout_ms = 2000;  // 2 saniye timeout

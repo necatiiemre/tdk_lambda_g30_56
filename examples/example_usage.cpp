@@ -22,49 +22,43 @@ void basicUsageExample() {
     std::cout << "\n========== Basic Usage Example ==========\n" << std::endl;
 
     try {
-        // Configure the power supply
-        G30Config config;
-        config.port = "/dev/ttyUSB0";  // Linux: /dev/ttyUSB0, Windows: COM3
-        config.baudRate = 9600;
-        config.timeout_ms = 1000;
-
-        // Create power supply instance
-        TDKLambdaG30 psu(config);
+        // Create power supply instance using factory function
+        auto psu = createG30Ethernet("192.168.1.100", 8003);
 
         // Connect to device
         std::cout << "Connecting to power supply..." << std::endl;
-        psu.connect();
+        psu->connect();
         std::cout << "Connected successfully!" << std::endl;
 
         // Get device identification
-        std::string id = psu.getIdentification();
+        std::string id = psu->getIdentification();
         std::cout << "Device ID: " << id << std::endl;
 
         // Set voltage and current
         std::cout << "\nSetting voltage to 12.0V..." << std::endl;
-        psu.setVoltage(12.0);
+        psu->setVoltage(12.0);
 
         std::cout << "Setting current limit to 2.5A..." << std::endl;
-        psu.setCurrent(2.5);
+        psu->setCurrent(2.5);
 
         // Verify settings
-        double setVoltage = psu.getVoltage();
-        double setCurrent = psu.getCurrent();
+        double setVoltage = psu->getVoltage();
+        double setCurrent = psu->getCurrent();
         std::cout << std::fixed << std::setprecision(3);
         std::cout << "Set voltage: " << setVoltage << "V" << std::endl;
         std::cout << "Set current: " << setCurrent << "A" << std::endl;
 
         // Enable output
         std::cout << "\nEnabling output..." << std::endl;
-        psu.enableOutput(true);
+        psu->enableOutput(true);
 
         // Wait a bit for stabilization
         std::this_thread::sleep_for(std::chrono::milliseconds(500));
 
         // Measure actual values
-        double measuredVoltage = psu.measureVoltage();
-        double measuredCurrent = psu.measureCurrent();
-        double measuredPower = psu.measurePower();
+        double measuredVoltage = psu->measureVoltage();
+        double measuredCurrent = psu->measureCurrent();
+        double measuredPower = psu->measurePower();
 
         std::cout << "\nMeasured values:" << std::endl;
         std::cout << "  Voltage: " << measuredVoltage << "V" << std::endl;
@@ -73,10 +67,10 @@ void basicUsageExample() {
 
         // Disable output
         std::cout << "\nDisabling output..." << std::endl;
-        psu.enableOutput(false);
+        psu->enableOutput(false);
 
         // Disconnect
-        psu.disconnect();
+        psu->disconnect();
         std::cout << "Disconnected successfully!" << std::endl;
 
     } catch (const G30Exception& e) {
@@ -92,7 +86,7 @@ void advancedRampExample() {
 
     try {
         // Use factory function for simpler creation
-        auto psu = createG30("/dev/ttyUSB0", 9600);
+        auto psu = createG30Ethernet("192.168.1.100", 8003);
 
         std::cout << "Connecting..." << std::endl;
         psu->connect();
@@ -138,22 +132,18 @@ void statusMonitoringExample() {
     std::cout << "\n========== Status Monitoring Example ==========\n" << std::endl;
 
     try {
-        G30Config config;
-        config.port = "/dev/ttyUSB0";
-        config.baudRate = 9600;
-
-        TDKLambdaG30 psu(config);
-        psu.connect();
+        auto psu = createG30Ethernet("192.168.1.100", 8003);
+        psu->connect();
 
         // Set up over-voltage protection
         std::cout << "Setting OVP to 15V..." << std::endl;
-        psu.setOverVoltageProtection(15.0);
-        std::cout << "OVP level: " << psu.getOverVoltageProtection() << "V" << std::endl;
+        psu->setOverVoltageProtection(15.0);
+        std::cout << "OVP level: " << psu->getOverVoltageProtection() << "V" << std::endl;
 
         // Configure output
-        psu.setVoltage(12.0);
-        psu.setCurrent(1.0);
-        psu.enableOutput(true);
+        psu->setVoltage(12.0);
+        psu->setCurrent(1.0);
+        psu->enableOutput(true);
 
         // Monitor for 5 seconds
         std::cout << "\nMonitoring for 5 seconds..." << std::endl;
@@ -162,9 +152,9 @@ void statusMonitoringExample() {
         for (int i = 0; i < 5; ++i) {
             std::this_thread::sleep_for(std::chrono::seconds(1));
 
-            PowerSupplyStatus status = psu.getStatus();
-            double voltage = psu.measureVoltage();
-            double current = psu.measureCurrent();
+            PowerSupplyStatus status = psu->getStatus();
+            double voltage = psu->measureVoltage();
+            double current = psu->measureCurrent();
 
             std::cout << "\n[" << (i + 1) << "s]" << std::endl;
             std::cout << "  V: " << voltage << "V, I: " << current << "A" << std::endl;
@@ -181,14 +171,14 @@ void statusMonitoringExample() {
             }
 
             // Check for errors
-            std::string error = psu.checkError();
+            std::string error = psu->checkError();
             if (!error.empty() && error.find("No error") == std::string::npos) {
                 std::cout << "  Error: " << error << std::endl;
             }
         }
 
-        psu.enableOutput(false);
-        psu.disconnect();
+        psu->enableOutput(false);
+        psu->disconnect();
 
         std::cout << "\nMonitoring completed!" << std::endl;
 
@@ -204,7 +194,7 @@ void customErrorHandlerExample() {
     std::cout << "\n========== Custom Error Handler Example ==========\n" << std::endl;
 
     try {
-        auto psu = createG30("/dev/ttyUSB0", 9600);
+        auto psu = createG30Ethernet("192.168.1.100", 8003);
 
         // Set custom error handler
         psu->setErrorHandler([](const std::string& error) {
@@ -235,7 +225,7 @@ void rawScpiCommandExample() {
     std::cout << "\n========== Raw SCPI Command Example ==========\n" << std::endl;
 
     try {
-        auto psu = createG30("/dev/ttyUSB0", 9600);
+        auto psu = createG30Ethernet("192.168.1.100", 8003);
         psu->connect();
 
         std::cout << "Sending raw SCPI commands..." << std::endl;
@@ -268,7 +258,7 @@ void sequencingExample() {
     std::cout << "\n========== Sequencing Example ==========\n" << std::endl;
 
     try {
-        auto psu = createG30("/dev/ttyUSB0", 9600);
+        auto psu = createG30Ethernet("192.168.1.100", 8003);
         psu->connect();
 
         // Define voltage sequence
@@ -341,7 +331,7 @@ int main(int argc, char* argv[]) {
     } else {
         // Run all examples
         std::cout << "\nRunning all examples..." << std::endl;
-        std::cout << "(Note: Adjust serial port in code before running)\n" << std::endl;
+        std::cout << "(Note: Adjust IP address in code before running)\n" << std::endl;
 
         basicUsageExample();
         advancedRampExample();

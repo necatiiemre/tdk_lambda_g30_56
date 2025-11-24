@@ -213,229 +213,6 @@ private:
     }
 };
 
-// ==================== Serial Port Implementation ====================
-
-/**
- * @brief Default serial port implementation using native OS APIs
- */
-class DefaultSerialPort : public ISerialPort {
-public:
-    DefaultSerialPort(const G30Config& config)
-        : config_(config), isOpen_(false) {
-#ifdef _WIN32
-        hSerial_ = INVALID_HANDLE_VALUE;
-#else
-        fd_ = -1;
-#endif
-    }
-
-    ~DefaultSerialPort() override {
-        close();
-    }
-
-    void open() {
-#ifdef _WIN32
-        openWindows();
-#else
-        openPosix();
-#endif
-    }
-
-    size_t write(const std::string& data) override {
-        if (!isOpen_) {
-            throw G30Exception("Serial port is not open");
-        }
-
-#ifdef _WIN32
-        DWORD bytesWritten;
-        if (!WriteFile(hSerial_, data.c_str(), static_cast<DWORD>(data.length()),
-                      &bytesWritten, nullptr)) {
-            throw G30Exception("Failed to write to serial port");
-        }
-        return static_cast<size_t>(bytesWritten);
-#else
-        ssize_t result = ::write(fd_, data.c_str(), data.length());
-        if (result < 0) {
-            throw G30Exception("Failed to write to serial port: " + std::string(strerror(errno)));
-        }
-        return static_cast<size_t>(result);
-#endif
-    }
-
-    std::string read(int timeout_ms = 1000) override {
-        if (!isOpen_) {
-            throw G30Exception("Serial port is not open");
-        }
-
-        std::string result;
-        char buffer[256];
-        auto start = std::chrono::steady_clock::now();
-
-        while (true) {
-            auto now = std::chrono::steady_clock::now();
-            auto elapsed = std::chrono::duration_cast<std::chrono::milliseconds>(now - start).count();
-
-            if (elapsed >= timeout_ms) {
-                break;
-            }
-
-#ifdef _WIN32
-            DWORD bytesRead;
-            if (ReadFile(hSerial_, buffer, sizeof(buffer) - 1, &bytesRead, nullptr) && bytesRead > 0) {
-                buffer[bytesRead] = '\0';
-                result += buffer;
-                if (result.find('\n') != std::string::npos) {
-                    break;
-                }
-            }
-#else
-            ssize_t bytesRead = ::read(fd_, buffer, sizeof(buffer) - 1);
-            if (bytesRead > 0) {
-                buffer[bytesRead] = '\0';
-                result += buffer;
-                if (result.find('\n') != std::string::npos) {
-                    break;
-                }
-            }
-#endif
-            std::this_thread::sleep_for(std::chrono::milliseconds(10));
-        }
-
-        return result;
-    }
-
-    bool isOpen() const override {
-        return isOpen_;
-    }
-
-    void close() override {
-        if (!isOpen_) {
-            return;
-        }
-
-#ifdef _WIN32
-        if (hSerial_ != INVALID_HANDLE_VALUE) {
-            CloseHandle(hSerial_);
-            hSerial_ = INVALID_HANDLE_VALUE;
-        }
-#else
-        if (fd_ != -1) {
-            ::close(fd_);
-            fd_ = -1;
-        }
-#endif
-        isOpen_ = false;
-    }
-
-private:
-    G30Config config_;
-    bool isOpen_;
-
-#ifdef _WIN32
-    HANDLE hSerial_;
-
-    void openWindows() {
-        std::string portName = "\\\\.\\" + config_.port;
-        hSerial_ = CreateFileA(
-            portName.c_str(),
-            GENERIC_READ | GENERIC_WRITE,
-            0,
-            nullptr,
-            OPEN_EXISTING,
-            FILE_ATTRIBUTE_NORMAL,
-            nullptr
-        );
-
-        if (hSerial_ == INVALID_HANDLE_VALUE) {
-            throw G30Exception("Failed to open serial port: " + config_.port);
-        }
-
-        DCB dcbSerialParams = {0};
-        dcbSerialParams.DCBlength = sizeof(dcbSerialParams);
-
-        if (!GetCommState(hSerial_, &dcbSerialParams)) {
-            CloseHandle(hSerial_);
-            throw G30Exception("Failed to get serial port state");
-        }
-
-        dcbSerialParams.BaudRate = config_.baudRate;
-        dcbSerialParams.ByteSize = config_.dataBits;
-        dcbSerialParams.StopBits = (config_.stopBits == 1) ? ONESTOPBIT : TWOSTOPBITS;
-        dcbSerialParams.Parity = (config_.parity == 'N') ? NOPARITY :
-                                 (config_.parity == 'E') ? EVENPARITY : ODDPARITY;
-
-        if (!SetCommState(hSerial_, &dcbSerialParams)) {
-            CloseHandle(hSerial_);
-            throw G30Exception("Failed to set serial port parameters");
-        }
-
-        COMMTIMEOUTS timeouts = {0};
-        timeouts.ReadIntervalTimeout = 50;
-        timeouts.ReadTotalTimeoutConstant = config_.timeout_ms;
-        timeouts.ReadTotalTimeoutMultiplier = 10;
-        timeouts.WriteTotalTimeoutConstant = config_.timeout_ms;
-        timeouts.WriteTotalTimeoutMultiplier = 10;
-
-        if (!SetCommTimeouts(hSerial_, &timeouts)) {
-            CloseHandle(hSerial_);
-            throw G30Exception("Failed to set serial port timeouts");
-        }
-
-        isOpen_ = true;
-    }
-#else
-    int fd_;
-
-    void openPosix() {
-        fd_ = ::open(config_.port.c_str(), O_RDWR | O_NOCTTY | O_NDELAY);
-        if (fd_ == -1) {
-            throw G30Exception("Failed to open serial port: " + config_.port);
-        }
-
-        struct termios options;
-        if (tcgetattr(fd_, &options) != 0) {
-            ::close(fd_);
-            throw G30Exception("Failed to get serial port attributes");
-        }
-
-        speed_t speed;
-        switch (config_.baudRate) {
-            case 9600: speed = B9600; break;
-            case 19200: speed = B19200; break;
-            case 38400: speed = B38400; break;
-            case 57600: speed = B57600; break;
-            case 115200: speed = B115200; break;
-            default:
-                ::close(fd_);
-                throw G30Exception("Unsupported baud rate: " + std::to_string(config_.baudRate));
-        }
-
-        cfsetispeed(&options, speed);
-        cfsetospeed(&options, speed);
-
-        options.c_cflag |= (CLOCAL | CREAD);
-        options.c_cflag &= ~PARENB;
-        options.c_cflag &= ~CSTOPB;
-        options.c_cflag &= ~CSIZE;
-        options.c_cflag |= CS8;
-        options.c_lflag &= ~(ICANON | ECHO | ECHOE | ISIG);
-        options.c_iflag &= ~(IXON | IXOFF | IXANY);
-        options.c_oflag &= ~OPOST;
-
-        options.c_cc[VMIN] = 0;
-        options.c_cc[VTIME] = config_.timeout_ms / 100;
-
-        if (tcsetattr(fd_, TCSANOW, &options) != 0) {
-            ::close(fd_);
-            throw G30Exception("Failed to set serial port attributes");
-        }
-
-        tcflush(fd_, TCIOFLUSH);
-        isOpen_ = true;
-    }
-#endif
-};
-
 // ==================== TDKLambdaG30 Implementation ====================
 
 TDKLambdaG30::TDKLambdaG30(const G30Config& config)
@@ -446,28 +223,12 @@ TDKLambdaG30::TDKLambdaG30(const G30Config& config)
       maxCurrent_(56.0),
       errorHandler_(nullptr) {
 
-    // Create appropriate communication port based on connection type
-    if (config_.connectionType == ConnectionType::SERIAL) {
-        commPort_ = std::make_unique<DefaultSerialPort>(config_);
-    } else if (config_.connectionType == ConnectionType::ETHERNET) {
-        commPort_ = std::make_unique<TcpPort>(config_);
-    } else {
-        throw G30Exception("Unknown connection type");
-    }
+    // Create TCP/IP communication port
+    commPort_ = std::make_unique<TcpPort>(config_);
 }
 
 TDKLambdaG30::TDKLambdaG30(std::unique_ptr<ICommunication> commPort, const G30Config& config)
     : commPort_(std::move(commPort)),
-      config_(config),
-      connected_(false),
-      outputEnabled_(false),
-      maxVoltage_(30.0),
-      maxCurrent_(56.0),
-      errorHandler_(nullptr) {
-}
-
-TDKLambdaG30::TDKLambdaG30(std::unique_ptr<ISerialPort> serialPort, const G30Config& config)
-    : commPort_(std::move(serialPort)),
       config_(config),
       connected_(false),
       outputEnabled_(false),
@@ -518,12 +279,7 @@ void TDKLambdaG30::connect() {
     }
 
     try {
-        // Try to open the port
-        auto* defaultPort = dynamic_cast<DefaultSerialPort*>(commPort_.get());
-        if (defaultPort) {
-            defaultPort->open();
-        }
-
+        // Open the TCP port
         auto* tcpPort = dynamic_cast<TcpPort*>(commPort_.get());
         if (tcpPort) {
             tcpPort->open();
@@ -923,25 +679,11 @@ void TDKLambdaG30::defaultErrorHandler(const std::string& error) {
 
 // ==================== Factory Functions ====================
 
-std::unique_ptr<TDKLambdaG30> createG30Serial(const std::string& port, int baudRate) {
-    G30Config config;
-    config.connectionType = ConnectionType::SERIAL;
-    config.port = port;
-    config.baudRate = baudRate;
-    return std::make_unique<TDKLambdaG30>(config);
-}
-
 std::unique_ptr<TDKLambdaG30> createG30Ethernet(const std::string& ipAddress, int tcpPort) {
     G30Config config;
-    config.connectionType = ConnectionType::ETHERNET;
     config.ipAddress = ipAddress;
     config.tcpPort = tcpPort;
     return std::make_unique<TDKLambdaG30>(config);
-}
-
-std::unique_ptr<TDKLambdaG30> createG30(const std::string& port, int baudRate) {
-    // Legacy function - defaults to serial port
-    return createG30Serial(port, baudRate);
 }
 
 } // namespace TDKLambda

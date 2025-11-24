@@ -1,13 +1,13 @@
 # TDK Lambda G30 Power Supply Controller
 
-Professional C++ library for controlling TDK Lambda G30 series programmable power supplies via **Serial (RS232/USB)** or **Ethernet (TCP/IP)** communication.
+Professional C++ library for controlling TDK Lambda G30 series programmable power supplies via **Ethernet (TCP/IP)** communication.
 
-**🆕 Generic Architecture**: Bu kütüphane artık **generic bir yapıya** sahip ve farklı üreticilerin güç kaynaklarını destekleyebilir! Detaylar için [ARCHITECTURE.md](ARCHITECTURE.md) dosyasına bakın.
+**🆕 Generic Architecture**: Bu kütüphane **generic bir yapıya** sahip ve farklı üreticilerin güç kaynaklarını destekleyebilir! Detaylar için [ARCHITECTURE.md](ARCHITECTURE.md) dosyasına bakın.
 
 ## Features
 
 - **Generic & Extensible**: Supports multiple PSU vendors through `IPowerSupply` interface
-- **Dual Communication Support**: Serial port (RS232/USB) and Ethernet (TCP/IP)
+- **Ethernet Communication**: TCP/IP support (Port 8003)
 - **Modern C++ Design**: Clean, professional C++14/17 implementation
 - **RAII Compliant**: Automatic resource management
 - **Exception-Based Error Handling**: Robust error management
@@ -53,7 +53,7 @@ tdk_lambda_g30_56/
 
 - C++14 or later
 - CMake 3.10 or later
-- Serial port access (Linux: `/dev/ttyUSB0`, Windows: `COM3`)
+- Network connectivity to TDK Lambda G30 (Ethernet/TCP-IP)
 - TDK Lambda G30 series power supply
 
 ## Building
@@ -84,70 +84,7 @@ cmake --build . --config Release
 
 ## Quick Start
 
-### Basic Usage
-
-```cpp
-#include "tdk_lambda_g30.h"
-#include <iostream>
-
-using namespace TDKLambda;
-
-int main() {
-    try {
-        // Configure connection
-        G30Config config;
-        config.port = "/dev/ttyUSB0";  // Linux: /dev/ttyUSB0, Windows: COM3
-        config.baudRate = 9600;
-
-        // Create power supply controller
-        TDKLambdaG30 psu(config);
-
-        // Connect
-        psu.connect();
-        std::cout << "Connected: " << psu.getIdentification() << std::endl;
-
-        // Set voltage and current
-        psu.setVoltage(12.0);   // 12V
-        psu.setCurrent(2.5);    // 2.5A current limit
-
-        // Enable output
-        psu.enableOutput(true);
-
-        // Measure values
-        std::cout << "Voltage: " << psu.measureVoltage() << "V" << std::endl;
-        std::cout << "Current: " << psu.measureCurrent() << "A" << std::endl;
-        std::cout << "Power: " << psu.measurePower() << "W" << std::endl;
-
-        // Disable output
-        psu.enableOutput(false);
-
-    } catch (const G30Exception& e) {
-        std::cerr << "Error: " << e.what() << std::endl;
-        return 1;
-    }
-
-    return 0;
-}
-```
-
-### Using Factory Function (Serial)
-
-```cpp
-#include "tdk_lambda_g30.h"
-
-int main() {
-    // Simpler creation using factory function
-    auto psu = TDKLambda::createG30Serial("/dev/ttyUSB0", 9600);
-
-    psu->connect();
-    psu->setVoltage(5.0);
-    psu->enableOutput(true);
-
-    return 0;
-}
-```
-
-### Using Ethernet (TCP/IP)
+### Basic Usage (Ethernet)
 
 ```cpp
 #include "tdk_lambda_g30.h"
