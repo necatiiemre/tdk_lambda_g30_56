@@ -101,7 +101,7 @@ struct G30Config {
 
     // Ethernet settings
     std::string ipAddress;      ///< IP address (e.g., "192.168.1.100")
-    int tcpPort;                ///< TCP port (default: 5025 for SCPI)
+    int tcpPort;                ///< TCP port (default: 8003 for TDK Lambda G30)
 
     // Common settings
     int timeout_ms;             ///< Communication timeout in milliseconds
@@ -114,7 +114,7 @@ struct G30Config {
           stopBits(1),
           parity('N'),
           ipAddress(""),
-          tcpPort(5025),
+          tcpPort(8003),  // TDK Lambda G30 default TCP port
           timeout_ms(1000) {}
 };
 
@@ -460,10 +460,10 @@ std::unique_ptr<TDKLambdaG30> createG30Serial(const std::string& port, int baudR
 /**
  * @brief Factory function to create TDKLambdaG30 instance with Ethernet
  * @param ipAddress IP address (e.g., "192.168.1.100")
- * @param tcpPort TCP port (default: 5025 for SCPI)
+ * @param tcpPort TCP port (default: 8003 for TDK Lambda G30)
  * @return Unique pointer to TDKLambdaG30 instance
  */
-std::unique_ptr<TDKLambdaG30> createG30Ethernet(const std::string& ipAddress, int tcpPort = 5025);
+std::unique_ptr<TDKLambdaG30> createG30Ethernet(const std::string& ipAddress, int tcpPort = 8003);
 
 /**
  * @brief Legacy factory function (uses serial port)

@@ -23,9 +23,10 @@ void basicEthernetExample() {
     std::cout << "\n========== Basic Ethernet Connection ==========\n" << std::endl;
 
     try {
-        // TDK Lambda G30 tipik olarak 5025 portunda SCPI dinler
+        // TDK Lambda G30 TCP port 8003'te SCPI komutlarını dinler
+        // NOT: Standard SCPI port 5025 DEĞİL, G30 için özel port 8003!
         std::string ipAddress = "192.168.1.100";  // Cihazın IP adresini buraya girin
-        int port = 5025;
+        int port = 8003;  // TDK Lambda G30 TCP port
 
         std::cout << "Bağlanıyor: " << ipAddress << ":" << port << std::endl;
 
@@ -88,7 +89,7 @@ void manualConfigExample() {
         G30Config config;
         config.connectionType = ConnectionType::ETHERNET;
         config.ipAddress = "192.168.1.100";
-        config.tcpPort = 5025;
+        config.tcpPort = 8003;
         config.timeout_ms = 2000;  // 2 saniye timeout
 
         std::cout << "Bağlanıyor: " << config.ipAddress << ":" << config.tcpPort << std::endl;
@@ -117,7 +118,7 @@ void ethernetSequencingExample() {
     std::cout << "\n========== Ethernet Voltage Sequencing ==========\n" << std::endl;
 
     try {
-        auto psu = createG30Ethernet("192.168.1.100", 5025);
+        auto psu = createG30Ethernet("192.168.1.100", 8003);
 
         psu->connect();
         std::cout << "Bağlandı: " << psu->getIdentification() << "\n" << std::endl;
@@ -161,7 +162,7 @@ void ethernetMonitoringExample() {
     std::cout << "\n========== Ethernet Monitoring ==========\n" << std::endl;
 
     try {
-        auto psu = createG30Ethernet("192.168.1.100", 5025);
+        auto psu = createG30Ethernet("192.168.1.100", 8003);
 
         psu->connect();
         std::cout << "Bağlandı!\n" << std::endl;
@@ -214,7 +215,7 @@ void scpiOverEthernetExample() {
     std::cout << "\n========== SCPI Over Ethernet ==========\n" << std::endl;
 
     try {
-        auto psu = createG30Ethernet("192.168.1.100", 5025);
+        auto psu = createG30Ethernet("192.168.1.100", 8003);
 
         psu->connect();
         std::cout << "Bağlandı!\n" << std::endl;
@@ -251,7 +252,7 @@ void ethernetErrorHandlingExample() {
     std::cout << "\n========== Error Handling ==========\n" << std::endl;
 
     try {
-        auto psu = createG30Ethernet("192.168.1.100", 5025);
+        auto psu = createG30Ethernet("192.168.1.100", 8003);
 
         // Custom error handler
         psu->setErrorHandler([](const std::string& error) {
@@ -288,8 +289,11 @@ int main(int argc, char* argv[]) {
     std::cout << "=======================================" << std::endl;
     std::cout << "TDK Lambda G30 Ethernet Examples" << std::endl;
     std::cout << "=======================================" << std::endl;
-    std::cout << "\n⚠️  Önemli: IP adresini kodda güncelleyin!" << std::endl;
-    std::cout << "    Varsayılan: 192.168.1.100:5025\n" << std::endl;
+    std::cout << "\n⚠️  Önemli Notlar:" << std::endl;
+    std::cout << "    • IP adresini kodda güncelleyin!" << std::endl;
+    std::cout << "    • TDK Lambda G30 TCP Port: 8003 (NOT 5025!)" << std::endl;
+    std::cout << "    • Varsayılan: 192.168.1.100:8003" << std::endl;
+    std::cout << "    • Multiple Clients için web arayüzünden ayarlayın\n" << std::endl;
 
     if (argc > 1) {
         std::string example = argv[1];

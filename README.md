@@ -156,7 +156,7 @@ using namespace TDKLambda;
 int main() {
     try {
         // Connect via Ethernet (SCPI over LAN)
-        auto psu = createG30Ethernet("192.168.1.100", 5025);
+        auto psu = createG30Ethernet("192.168.1.100", 8003);
 
         psu->connect();
         std::cout << "Connected: " << psu->getIdentification() << std::endl;
@@ -195,7 +195,7 @@ config.baudRate = 9600;
 // OR for Ethernet connection
 config.connectionType = ConnectionType::ETHERNET;
 config.ipAddress = "192.168.1.100";
-config.tcpPort = 5025;
+config.tcpPort = 8003;
 
 // Common settings
 config.timeout_ms = 2000;
@@ -381,7 +381,7 @@ struct G30Config {
 
     // Ethernet settings
     string ipAddress;    // IP address (e.g., "192.168.1.100")
-    int tcpPort;         // TCP port (default: 5025 for SCPI)
+    int tcpPort;         // TCP port (default: 8003 for SCPI)
 
     // Common settings
     int timeout_ms;      // Communication timeout (default: 1000)
@@ -437,8 +437,10 @@ try {
 
 #### Network Setup
 - TDK Lambda G30 supports SCPI over TCP/IP (LAN interface)
-- Default SCPI port: **5025** (standard SCPI-over-LAN port)
+- **TCP Port: 8003** (TDK Lambda G30 specific - NOT standard SCPI port 5025!)
+- **UDP Port: 8005** (for connectionless communication)
 - Configure your device's IP address via front panel or web interface
+- For multiple simultaneous connections, enable "Multiple Clients" in web interface (supports up to 3 TCP clients)
 
 #### Ubuntu Network Configuration
 
@@ -456,17 +458,23 @@ Test connectivity:
 # Ping the device
 ping 192.168.1.100
 
-# Test SCPI port
-telnet 192.168.1.100 5025
+# Test TCP port (8003)
+telnet 192.168.1.100 8003
 
-# Or use netcat
-nc -zv 192.168.1.100 5025
+# Or use netcat for TCP
+nc -zv 192.168.1.100 8003
+
+# Test UDP port (8005) - optional
+nc -zvu 192.168.1.100 8005
 ```
 
 #### Firewall Settings (if needed)
 ```bash
-# Ubuntu: Allow outgoing TCP connections (usually allowed by default)
-sudo ufw allow out 5025/tcp
+# Ubuntu: Allow outgoing TCP connections to port 8003
+sudo ufw allow out 8003/tcp
+
+# If using UDP (port 8005)
+sudo ufw allow out 8005/udp
 
 # Check firewall status
 sudo ufw status
@@ -476,7 +484,7 @@ sudo ufw status
 
 **Static IP Configuration:**
 ```cpp
-auto psu = createG30Ethernet("192.168.1.100", 5025);
+auto psu = createG30Ethernet("192.168.1.100", 8003);
 ```
 
 **With Timeout:**
@@ -484,7 +492,7 @@ auto psu = createG30Ethernet("192.168.1.100", 5025);
 G30Config config;
 config.connectionType = ConnectionType::ETHERNET;
 config.ipAddress = "192.168.1.100";
-config.tcpPort = 5025;
+config.tcpPort = 8003;
 config.timeout_ms = 3000;  // 3 second timeout for network delays
 
 TDKLambdaG30 psu(config);
@@ -492,11 +500,12 @@ TDKLambdaG30 psu(config);
 
 #### Troubleshooting Ethernet Connection
 
-1. **Cannot connect**: Check IP address and port
-2. **Connection timeout**: Increase `timeout_ms` in config
-3. **Firewall blocking**: Check firewall rules
-4. **Wrong port**: Verify SCPI port (usually 5025, check manual)
-5. **Network issue**: Verify with `ping` and `telnet`
+1. **Cannot connect**: Check IP address and port (must be **8003** for TCP, not 5025!)
+2. **Connection timeout**: Increase `timeout_ms` in config (try 3000ms for network delays)
+3. **Firewall blocking**: Check firewall rules with `sudo ufw status`
+4. **Wrong port**: TDK Lambda G30 uses **port 8003** (TCP) or **8005** (UDP), NOT standard SCPI port 5025
+5. **Network issue**: Verify with `ping` and `telnet 192.168.1.100 8003`
+6. **Multiple clients**: If you need more than one connection, enable "Multiple Clients" in device web interface
 
 ## SCPI Commands Reference
 
