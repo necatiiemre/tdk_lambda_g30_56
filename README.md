@@ -1,9 +1,10 @@
 # TDK Lambda G30 Power Supply Controller
 
-Professional C++ library for controlling TDK Lambda G30 series programmable power supplies via serial communication.
+Professional C++ library for controlling TDK Lambda G30 series programmable power supplies via **Serial (RS232/USB)** or **Ethernet (TCP/IP)** communication.
 
 ## Features
 
+- **Dual Communication Support**: Serial port (RS232/USB) and Ethernet (TCP/IP)
 - **Modern C++ Design**: Clean, professional C++14/17 implementation
 - **RAII Compliant**: Automatic resource management
 - **Exception-Based Error Handling**: Robust error management
@@ -127,14 +128,14 @@ int main() {
 }
 ```
 
-### Using Factory Function
+### Using Factory Function (Serial)
 
 ```cpp
 #include "tdk_lambda_g30.h"
 
 int main() {
     // Simpler creation using factory function
-    auto psu = TDKLambda::createG30("/dev/ttyUSB0", 9600);
+    auto psu = TDKLambda::createG30Serial("/dev/ttyUSB0", 9600);
 
     psu->connect();
     psu->setVoltage(5.0);
@@ -142,6 +143,65 @@ int main() {
 
     return 0;
 }
+```
+
+### Using Ethernet (TCP/IP)
+
+```cpp
+#include "tdk_lambda_g30.h"
+#include <iostream>
+
+using namespace TDKLambda;
+
+int main() {
+    try {
+        // Connect via Ethernet (SCPI over LAN)
+        auto psu = createG30Ethernet("192.168.1.100", 5025);
+
+        psu->connect();
+        std::cout << "Connected: " << psu->getIdentification() << std::endl;
+
+        // Control over Ethernet
+        psu->setVoltage(12.0);
+        psu->setCurrent(2.5);
+        psu->enableOutput(true);
+
+        // Measure
+        std::cout << "Voltage: " << psu->measureVoltage() << "V" << std::endl;
+        std::cout << "Current: " << psu->measureCurrent() << "A" << std::endl;
+
+        psu->enableOutput(false);
+
+    } catch (const G30Exception& e) {
+        std::cerr << "Error: " << e.what() << std::endl;
+        return 1;
+    }
+
+    return 0;
+}
+```
+
+### Manual Configuration
+
+```cpp
+// For more control over connection parameters
+G30Config config;
+
+// For Serial connection
+config.connectionType = ConnectionType::SERIAL;
+config.port = "/dev/ttyUSB0";
+config.baudRate = 9600;
+
+// OR for Ethernet connection
+config.connectionType = ConnectionType::ETHERNET;
+config.ipAddress = "192.168.1.100";
+config.tcpPort = 5025;
+
+// Common settings
+config.timeout_ms = 2000;
+
+TDKLambdaG30 psu(config);
+psu.connect();
 ```
 
 ## Advanced Examples
@@ -310,11 +370,20 @@ Main controller class for power supply operations.
 #### `G30Config`
 ```cpp
 struct G30Config {
+    ConnectionType connectionType;  // SERIAL or ETHERNET
+
+    // Serial port settings
     string port;         // Serial port (e.g., "/dev/ttyUSB0" or "COM3")
     int baudRate;        // Baud rate (default: 9600)
     int dataBits;        // Data bits (default: 8)
     int stopBits;        // Stop bits (default: 1)
     char parity;         // Parity ('N', 'E', 'O')
+
+    // Ethernet settings
+    string ipAddress;    // IP address (e.g., "192.168.1.100")
+    int tcpPort;         // TCP port (default: 5025 for SCPI)
+
+    // Common settings
     int timeout_ms;      // Communication timeout (default: 1000)
 };
 ```
@@ -344,23 +413,90 @@ try {
 }
 ```
 
-## Serial Port Configuration
+## Communication Configuration
 
-### Linux
+### Serial Port (RS232/USB)
+
+#### Linux
 - Default port: `/dev/ttyUSB0` or `/dev/ttyACM0`
 - User must have permission to access the port
 - Add user to `dialout` group: `sudo usermod -a -G dialout $USER`
 
-### Windows
+#### Windows
 - Default port: `COM3` (check Device Manager)
 - No special permissions needed
 
-### Common Settings
+#### Common Settings
 - Baud rate: 9600 (default for TDK Lambda G30)
 - Data bits: 8
 - Stop bits: 1
 - Parity: None
 - Flow control: None
+
+### Ethernet (TCP/IP)
+
+#### Network Setup
+- TDK Lambda G30 supports SCPI over TCP/IP (LAN interface)
+- Default SCPI port: **5025** (standard SCPI-over-LAN port)
+- Configure your device's IP address via front panel or web interface
+
+#### Ubuntu Network Configuration
+
+Find your power supply's IP address:
+```bash
+# Scan network for devices (install nmap first)
+sudo apt install nmap
+sudo nmap -sP 192.168.1.0/24
+
+# Or check your router's DHCP client list
+```
+
+Test connectivity:
+```bash
+# Ping the device
+ping 192.168.1.100
+
+# Test SCPI port
+telnet 192.168.1.100 5025
+
+# Or use netcat
+nc -zv 192.168.1.100 5025
+```
+
+#### Firewall Settings (if needed)
+```bash
+# Ubuntu: Allow outgoing TCP connections (usually allowed by default)
+sudo ufw allow out 5025/tcp
+
+# Check firewall status
+sudo ufw status
+```
+
+#### Connection Examples
+
+**Static IP Configuration:**
+```cpp
+auto psu = createG30Ethernet("192.168.1.100", 5025);
+```
+
+**With Timeout:**
+```cpp
+G30Config config;
+config.connectionType = ConnectionType::ETHERNET;
+config.ipAddress = "192.168.1.100";
+config.tcpPort = 5025;
+config.timeout_ms = 3000;  // 3 second timeout for network delays
+
+TDKLambdaG30 psu(config);
+```
+
+#### Troubleshooting Ethernet Connection
+
+1. **Cannot connect**: Check IP address and port
+2. **Connection timeout**: Increase `timeout_ms` in config
+3. **Firewall blocking**: Check firewall rules
+4. **Wrong port**: Verify SCPI port (usually 5025, check manual)
+5. **Network issue**: Verify with `ping` and `telnet`
 
 ## SCPI Commands Reference
 

@@ -15,14 +15,203 @@
 
 #ifdef _WIN32
     #include <windows.h>
+    #include <winsock2.h>
+    #include <ws2tcpip.h>
+    #pragma comment(lib, "ws2_32.lib")
 #else
     #include <fcntl.h>
     #include <unistd.h>
     #include <termios.h>
     #include <cstring>
+    #include <sys/socket.h>
+    #include <netinet/in.h>
+    #include <arpa/inet.h>
+    #include <netdb.h>
+    #include <errno.h>
+    #include <poll.h>
 #endif
 
 namespace TDKLambda {
+
+// ==================== TCP/IP Port Implementation ====================
+
+/**
+ * @brief TCP/IP port implementation for Ethernet communication
+ */
+class TcpPort : public ICommunication {
+public:
+    TcpPort(const G30Config& config)
+        : config_(config), isOpen_(false), sockfd_(-1) {
+#ifdef _WIN32
+        WSADATA wsaData;
+        if (WSAStartup(MAKEWORD(2, 2), &wsaData) != 0) {
+            throw G30Exception("Failed to initialize Winsock");
+        }
+#endif
+    }
+
+    ~TcpPort() override {
+        close();
+#ifdef _WIN32
+        WSACleanup();
+#endif
+    }
+
+    void open() {
+        if (isOpen_) {
+            return;
+        }
+
+        if (config_.ipAddress.empty()) {
+            throw G30Exception("IP address is empty");
+        }
+
+        // Create socket
+        sockfd_ = socket(AF_INET, SOCK_STREAM, 0);
+        if (sockfd_ < 0) {
+            throw G30Exception("Failed to create socket");
+        }
+
+        // Set socket timeout
+        struct timeval timeout;
+        timeout.tv_sec = config_.timeout_ms / 1000;
+        timeout.tv_usec = (config_.timeout_ms % 1000) * 1000;
+
+#ifdef _WIN32
+        DWORD tv = config_.timeout_ms;
+        setsockopt(sockfd_, SOL_SOCKET, SO_RCVTIMEO, (const char*)&tv, sizeof(tv));
+        setsockopt(sockfd_, SOL_SOCKET, SO_SNDTIMEO, (const char*)&tv, sizeof(tv));
+#else
+        setsockopt(sockfd_, SOL_SOCKET, SO_RCVTIMEO, &timeout, sizeof(timeout));
+        setsockopt(sockfd_, SOL_SOCKET, SO_SNDTIMEO, &timeout, sizeof(timeout));
+#endif
+
+        // Setup server address
+        struct sockaddr_in serverAddr;
+        memset(&serverAddr, 0, sizeof(serverAddr));
+        serverAddr.sin_family = AF_INET;
+        serverAddr.sin_port = htons(config_.tcpPort);
+
+        // Convert IP address
+        if (inet_pton(AF_INET, config_.ipAddress.c_str(), &serverAddr.sin_addr) <= 0) {
+            closesocket(sockfd_);
+            throw G30Exception("Invalid IP address: " + config_.ipAddress);
+        }
+
+        // Connect to server
+        if (connect(sockfd_, (struct sockaddr*)&serverAddr, sizeof(serverAddr)) < 0) {
+            closesocket(sockfd_);
+            throw G30Exception("Failed to connect to " + config_.ipAddress + ":" +
+                             std::to_string(config_.tcpPort));
+        }
+
+        isOpen_ = true;
+    }
+
+    size_t write(const std::string& data) override {
+        if (!isOpen_) {
+            throw G30Exception("TCP port is not open");
+        }
+
+#ifdef _WIN32
+        int result = send(sockfd_, data.c_str(), static_cast<int>(data.length()), 0);
+#else
+        ssize_t result = send(sockfd_, data.c_str(), data.length(), 0);
+#endif
+
+        if (result < 0) {
+            throw G30Exception("Failed to send data over TCP");
+        }
+
+        return static_cast<size_t>(result);
+    }
+
+    std::string read(int timeout_ms = 1000) override {
+        if (!isOpen_) {
+            throw G30Exception("TCP port is not open");
+        }
+
+        std::string result;
+        char buffer[256];
+        auto start = std::chrono::steady_clock::now();
+
+        while (true) {
+            auto now = std::chrono::steady_clock::now();
+            auto elapsed = std::chrono::duration_cast<std::chrono::milliseconds>(now - start).count();
+
+            if (elapsed >= timeout_ms) {
+                break;
+            }
+
+            // Use poll/select to check for data
+#ifdef _WIN32
+            fd_set readfds;
+            FD_ZERO(&readfds);
+            FD_SET(sockfd_, &readfds);
+
+            struct timeval tv;
+            tv.tv_sec = 0;
+            tv.tv_usec = 10000; // 10ms
+
+            int selectResult = select(0, &readfds, nullptr, nullptr, &tv);
+            if (selectResult > 0) {
+                int bytesRead = recv(sockfd_, buffer, sizeof(buffer) - 1, 0);
+#else
+            struct pollfd pfd;
+            pfd.fd = sockfd_;
+            pfd.events = POLLIN;
+
+            int pollResult = poll(&pfd, 1, 10); // 10ms timeout
+            if (pollResult > 0 && (pfd.revents & POLLIN)) {
+                ssize_t bytesRead = recv(sockfd_, buffer, sizeof(buffer) - 1, 0);
+#endif
+                if (bytesRead > 0) {
+                    buffer[bytesRead] = '\0';
+                    result += buffer;
+                    if (result.find('\n') != std::string::npos) {
+                        break;
+                    }
+                } else if (bytesRead == 0) {
+                    // Connection closed
+                    throw G30Exception("TCP connection closed by remote host");
+                }
+            }
+
+            std::this_thread::sleep_for(std::chrono::milliseconds(5));
+        }
+
+        return result;
+    }
+
+    bool isOpen() const override {
+        return isOpen_;
+    }
+
+    void close() override {
+        if (!isOpen_) {
+            return;
+        }
+
+        if (sockfd_ >= 0) {
+            closesocket(sockfd_);
+            sockfd_ = -1;
+        }
+        isOpen_ = false;
+    }
+
+private:
+    G30Config config_;
+    bool isOpen_;
+    int sockfd_;
+
+    void closesocket(int sock) {
+#ifdef _WIN32
+        ::closesocket(sock);
+#else
+        ::close(sock);
+#endif
+    }
+};
 
 // ==================== Serial Port Implementation ====================
 
@@ -250,7 +439,25 @@ private:
 // ==================== TDKLambdaG30 Implementation ====================
 
 TDKLambdaG30::TDKLambdaG30(const G30Config& config)
-    : serialPort_(std::make_unique<DefaultSerialPort>(config)),
+    : config_(config),
+      connected_(false),
+      outputEnabled_(false),
+      maxVoltage_(30.0),
+      maxCurrent_(56.0),
+      errorHandler_(nullptr) {
+
+    // Create appropriate communication port based on connection type
+    if (config_.connectionType == ConnectionType::SERIAL) {
+        commPort_ = std::make_unique<DefaultSerialPort>(config_);
+    } else if (config_.connectionType == ConnectionType::ETHERNET) {
+        commPort_ = std::make_unique<TcpPort>(config_);
+    } else {
+        throw G30Exception("Unknown connection type");
+    }
+}
+
+TDKLambdaG30::TDKLambdaG30(std::unique_ptr<ICommunication> commPort, const G30Config& config)
+    : commPort_(std::move(commPort)),
       config_(config),
       connected_(false),
       outputEnabled_(false),
@@ -260,7 +467,7 @@ TDKLambdaG30::TDKLambdaG30(const G30Config& config)
 }
 
 TDKLambdaG30::TDKLambdaG30(std::unique_ptr<ISerialPort> serialPort, const G30Config& config)
-    : serialPort_(std::move(serialPort)),
+    : commPort_(std::move(serialPort)),
       config_(config),
       connected_(false),
       outputEnabled_(false),
@@ -281,7 +488,7 @@ TDKLambdaG30::~TDKLambdaG30() {
 }
 
 TDKLambdaG30::TDKLambdaG30(TDKLambdaG30&& other) noexcept
-    : serialPort_(std::move(other.serialPort_)),
+    : commPort_(std::move(other.commPort_)),
       config_(std::move(other.config_)),
       connected_(other.connected_),
       outputEnabled_(other.outputEnabled_),
@@ -293,7 +500,7 @@ TDKLambdaG30::TDKLambdaG30(TDKLambdaG30&& other) noexcept
 
 TDKLambdaG30& TDKLambdaG30::operator=(TDKLambdaG30&& other) noexcept {
     if (this != &other) {
-        serialPort_ = std::move(other.serialPort_);
+        commPort_ = std::move(other.commPort_);
         config_ = std::move(other.config_);
         connected_ = other.connected_;
         outputEnabled_ = other.outputEnabled_;
@@ -311,9 +518,15 @@ void TDKLambdaG30::connect() {
     }
 
     try {
-        auto* defaultPort = dynamic_cast<DefaultSerialPort*>(serialPort_.get());
+        // Try to open the port
+        auto* defaultPort = dynamic_cast<DefaultSerialPort*>(commPort_.get());
         if (defaultPort) {
             defaultPort->open();
+        }
+
+        auto* tcpPort = dynamic_cast<TcpPort*>(commPort_.get());
+        if (tcpPort) {
+            tcpPort->open();
         }
 
         std::this_thread::sleep_for(std::chrono::milliseconds(100));
@@ -335,14 +548,14 @@ void TDKLambdaG30::connect() {
 }
 
 void TDKLambdaG30::disconnect() {
-    if (serialPort_) {
-        serialPort_->close();
+    if (commPort_) {
+        commPort_->close();
     }
     connected_ = false;
 }
 
 bool TDKLambdaG30::isConnected() const {
-    return connected_ && serialPort_ && serialPort_->isOpen();
+    return connected_ && commPort_ && commPort_->isOpen();
 }
 
 void TDKLambdaG30::enableOutput(bool enable) {
@@ -351,7 +564,7 @@ void TDKLambdaG30::enableOutput(bool enable) {
     }
 
     std::string command = enable ? "OUTP ON\n" : "OUTP OFF\n";
-    serialPort_->write(command);
+    commPort_->write(command);
     std::this_thread::sleep_for(std::chrono::milliseconds(50));
     outputEnabled_ = enable;
 }
@@ -370,7 +583,7 @@ void TDKLambdaG30::reset() {
         throw G30Exception("Not connected to device");
     }
 
-    serialPort_->write("*RST\n");
+    commPort_->write("*RST\n");
     std::this_thread::sleep_for(std::chrono::milliseconds(500));
     outputEnabled_ = false;
 }
@@ -386,7 +599,7 @@ void TDKLambdaG30::setVoltage(double voltage) {
     oss.precision(3);
     oss << std::fixed << "VOLT " << voltage << "\n";
 
-    serialPort_->write(oss.str());
+    commPort_->write(oss.str());
     std::this_thread::sleep_for(std::chrono::milliseconds(50));
 }
 
@@ -440,7 +653,7 @@ void TDKLambdaG30::setCurrent(double current) {
     oss.precision(3);
     oss << std::fixed << "CURR " << current << "\n";
 
-    serialPort_->write(oss.str());
+    commPort_->write(oss.str());
     std::this_thread::sleep_for(std::chrono::milliseconds(50));
 }
 
@@ -502,7 +715,7 @@ void TDKLambdaG30::setOverVoltageProtection(double voltage) {
     oss.precision(3);
     oss << std::fixed << "VOLT:PROT " << voltage << "\n";
 
-    serialPort_->write(oss.str());
+    commPort_->write(oss.str());
     std::this_thread::sleep_for(std::chrono::milliseconds(50));
 }
 
@@ -520,12 +733,12 @@ void TDKLambdaG30::clearProtection() {
         throw G30Exception("Not connected to device");
     }
 
-    serialPort_->write("*CLS\n");
+    commPort_->write("*CLS\n");
     std::this_thread::sleep_for(std::chrono::milliseconds(100));
 }
 
 std::string TDKLambdaG30::getIdentification() const {
-    if (!isConnected() && !serialPort_->isOpen()) {
+    if (!isConnected() && !commPort_->isOpen()) {
         throw G30Exception("Not connected to device");
     }
 
@@ -590,14 +803,14 @@ std::string TDKLambdaG30::sendCommand(const std::string& command) {
         cmd += '\n';
     }
 
-    serialPort_->write(cmd);
+    commPort_->write(cmd);
     std::this_thread::sleep_for(std::chrono::milliseconds(50));
 
     return "OK";
 }
 
 std::string TDKLambdaG30::sendQuery(const std::string& query) const {
-    if (!isConnected() && !serialPort_->isOpen()) {
+    if (!isConnected() && !commPort_->isOpen()) {
         throw G30Exception("Not connected to device");
     }
 
@@ -606,10 +819,10 @@ std::string TDKLambdaG30::sendQuery(const std::string& query) const {
         cmd += '\n';
     }
 
-    serialPort_->write(cmd);
+    commPort_->write(cmd);
     std::this_thread::sleep_for(std::chrono::milliseconds(50));
 
-    std::string response = serialPort_->read(config_.timeout_ms);
+    std::string response = commPort_->read(config_.timeout_ms);
     return trim(response);
 }
 
@@ -659,11 +872,27 @@ void TDKLambdaG30::defaultErrorHandler(const std::string& error) {
     std::cerr << "TDK Lambda G30 Error: " << error << std::endl;
 }
 
-std::unique_ptr<TDKLambdaG30> createG30(const std::string& port, int baudRate) {
+// ==================== Factory Functions ====================
+
+std::unique_ptr<TDKLambdaG30> createG30Serial(const std::string& port, int baudRate) {
     G30Config config;
+    config.connectionType = ConnectionType::SERIAL;
     config.port = port;
     config.baudRate = baudRate;
     return std::make_unique<TDKLambdaG30>(config);
+}
+
+std::unique_ptr<TDKLambdaG30> createG30Ethernet(const std::string& ipAddress, int tcpPort) {
+    G30Config config;
+    config.connectionType = ConnectionType::ETHERNET;
+    config.ipAddress = ipAddress;
+    config.tcpPort = tcpPort;
+    return std::make_unique<TDKLambdaG30>(config);
+}
+
+std::unique_ptr<TDKLambdaG30> createG30(const std::string& port, int baudRate) {
+    // Legacy function - defaults to serial port
+    return createG30Serial(port, baudRate);
 }
 
 } // namespace TDKLambda

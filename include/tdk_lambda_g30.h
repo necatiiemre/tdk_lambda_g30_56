@@ -5,7 +5,8 @@
  * @date 2025-11-24
  *
  * Professional C++ interface for controlling TDK Lambda G30 series power supplies.
- * Supports voltage and current control via serial communication using SCPI commands.
+ * Supports voltage and current control via serial (RS232/USB) or Ethernet (TCP/IP)
+ * communication using SCPI commands.
  *
  * @author Professional Power Supply Control Library
  * @copyright MIT License
@@ -23,6 +24,14 @@
 namespace TDKLambda {
 
 /**
+ * @brief Connection type enumeration
+ */
+enum class ConnectionType {
+    SERIAL,      ///< Serial port connection (RS232/USB)
+    ETHERNET     ///< Ethernet TCP/IP connection
+};
+
+/**
  * @brief Custom exception class for TDK Lambda G30 errors
  */
 class G30Exception : public std::runtime_error {
@@ -32,23 +41,24 @@ public:
 };
 
 /**
- * @brief Communication interface for serial port abstraction
+ * @brief Communication interface for abstraction
  *
- * This allows for dependency injection and easier testing
+ * This allows for dependency injection and easier testing.
+ * Supports both serial port and Ethernet communication.
  */
-class ISerialPort {
+class ICommunication {
 public:
-    virtual ~ISerialPort() = default;
+    virtual ~ICommunication() = default;
 
     /**
-     * @brief Write data to serial port
+     * @brief Write data to communication port
      * @param data Data to write
      * @return Number of bytes written
      */
     virtual size_t write(const std::string& data) = 0;
 
     /**
-     * @brief Read data from serial port
+     * @brief Read data from communication port
      * @param timeout_ms Timeout in milliseconds
      * @return Read data
      */
@@ -67,22 +77,44 @@ public:
 };
 
 /**
+ * @brief Legacy serial port interface (kept for backward compatibility)
+ *
+ * This allows for dependency injection and easier testing
+ */
+class ISerialPort : public ICommunication {
+public:
+    virtual ~ISerialPort() = default;
+};
+
+/**
  * @brief Configuration structure for TDK Lambda G30
  */
 struct G30Config {
+    ConnectionType connectionType;  ///< Connection type (SERIAL or ETHERNET)
+
+    // Serial port settings
     std::string port;           ///< Serial port (e.g., "/dev/ttyUSB0" or "COM3")
     int baudRate;               ///< Baud rate (default: 9600)
     int dataBits;               ///< Data bits (default: 8)
     int stopBits;               ///< Stop bits (default: 1)
     char parity;                ///< Parity ('N': none, 'E': even, 'O': odd)
+
+    // Ethernet settings
+    std::string ipAddress;      ///< IP address (e.g., "192.168.1.100")
+    int tcpPort;                ///< TCP port (default: 5025 for SCPI)
+
+    // Common settings
     int timeout_ms;             ///< Communication timeout in milliseconds
 
     G30Config()
-        : port(""),
+        : connectionType(ConnectionType::SERIAL),
+          port(""),
           baudRate(9600),
           dataBits(8),
           stopBits(1),
           parity('N'),
+          ipAddress(""),
+          tcpPort(5025),
           timeout_ms(1000) {}
 };
 
@@ -139,7 +171,14 @@ public:
     explicit TDKLambdaG30(const G30Config& config);
 
     /**
-     * @brief Construct with custom serial port implementation
+     * @brief Construct with custom communication implementation
+     * @param commPort Custom communication port implementation
+     * @param config Configuration parameters
+     */
+    TDKLambdaG30(std::unique_ptr<ICommunication> commPort, const G30Config& config);
+
+    /**
+     * @brief Construct with custom serial port implementation (backward compatibility)
      * @param serialPort Custom serial port implementation
      * @param config Configuration parameters
      */
@@ -360,7 +399,7 @@ public:
     void setErrorHandler(std::function<void(const std::string&)> handler);
 
 private:
-    std::unique_ptr<ISerialPort> serialPort_;
+    std::unique_ptr<ICommunication> commPort_;
     G30Config config_;
     bool connected_;
     mutable bool outputEnabled_;
@@ -408,8 +447,26 @@ private:
     void defaultErrorHandler(const std::string& error);
 };
 
+// ==================== Factory Functions ====================
+
 /**
- * @brief Factory function to create TDKLambdaG30 instance
+ * @brief Factory function to create TDKLambdaG30 instance with serial port
+ * @param port Serial port name (e.g., "/dev/ttyUSB0" or "COM3")
+ * @param baudRate Baud rate (default: 9600)
+ * @return Unique pointer to TDKLambdaG30 instance
+ */
+std::unique_ptr<TDKLambdaG30> createG30Serial(const std::string& port, int baudRate = 9600);
+
+/**
+ * @brief Factory function to create TDKLambdaG30 instance with Ethernet
+ * @param ipAddress IP address (e.g., "192.168.1.100")
+ * @param tcpPort TCP port (default: 5025 for SCPI)
+ * @return Unique pointer to TDKLambdaG30 instance
+ */
+std::unique_ptr<TDKLambdaG30> createG30Ethernet(const std::string& ipAddress, int tcpPort = 5025);
+
+/**
+ * @brief Legacy factory function (uses serial port)
  * @param port Serial port name
  * @param baudRate Baud rate (default: 9600)
  * @return Unique pointer to TDKLambdaG30 instance

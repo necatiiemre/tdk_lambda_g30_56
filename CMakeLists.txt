@@ -52,6 +52,10 @@ target_link_libraries(example_usage tdk_lambda_g30_static)
 add_executable(simple_test examples/simple_test.cpp)
 target_link_libraries(simple_test tdk_lambda_g30_static)
 
+# Ethernet example
+add_executable(ethernet_example examples/ethernet_example.cpp)
+target_link_libraries(ethernet_example tdk_lambda_g30_static)
+
 # Installation rules
 install(TARGETS tdk_lambda_g30_static tdk_lambda_g30_shared
     ARCHIVE DESTINATION lib
@@ -75,5 +79,6 @@ message(STATUS "  - tdk_lambda_g30_static (static library)")
 message(STATUS "  - tdk_lambda_g30_shared (shared library)")
 message(STATUS "  - example_usage (comprehensive examples)")
 message(STATUS "  - simple_test (simple test for Ubuntu)")
+message(STATUS "  - ethernet_example (Ethernet/TCP-IP examples)")
 message(STATUS "==========================================")
 message(STATUS "")
