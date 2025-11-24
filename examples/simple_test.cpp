@@ -6,6 +6,8 @@
 #include "../include/tdk_lambda_g30.h"
 #include <iostream>
 #include <iomanip>
+#include <thread>
+#include <chrono>
 
 using namespace TDKLambda;
 

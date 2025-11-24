@@ -15,6 +15,7 @@
 #ifndef TDK_LAMBDA_G30_H
 #define TDK_LAMBDA_G30_H
 
+#include "power_supply_interface.h"
 #include <string>
 #include <memory>
 #include <stdexcept>
@@ -23,13 +24,13 @@
 
 namespace TDKLambda {
 
-/**
- * @brief Connection type enumeration
- */
-enum class ConnectionType {
-    SERIAL,      ///< Serial port connection (RS232/USB)
-    ETHERNET     ///< Ethernet TCP/IP connection
-};
+// Import types from generic PowerSupply namespace
+using PowerSupply::PowerSupplyStatus;
+using PowerSupply::PowerSupplyCapabilities;
+using PowerSupply::Vendor;
+
+// Type alias for backward compatibility
+using ConnectionType = PowerSupply::ConnectionType;
 
 /**
  * @brief Custom exception class for TDK Lambda G30 errors
@@ -119,28 +120,13 @@ struct G30Config {
 };
 
 /**
- * @brief Power supply status information
- */
-struct PowerSupplyStatus {
-    bool outputEnabled;         ///< Output state
-    bool overVoltageProtection; ///< OVP triggered
-    bool overCurrentProtection; ///< OCP triggered
-    bool overTemperature;       ///< Over temperature
-    bool remoteSensing;         ///< Remote sensing enabled
-
-    PowerSupplyStatus()
-        : outputEnabled(false),
-          overVoltageProtection(false),
-          overCurrentProtection(false),
-          overTemperature(false),
-          remoteSensing(false) {}
-};
-
-/**
  * @brief Main controller class for TDK Lambda G30 Power Supply
  *
  * This class provides a clean, modern C++ interface for controlling
  * TDK Lambda G30 series programmable power supplies.
+ *
+ * Implements the generic IPowerSupply interface while providing
+ * TDK Lambda G30 specific features and optimizations.
  *
  * Features:
  * - RAII-compliant resource management
@@ -148,6 +134,7 @@ struct PowerSupplyStatus {
  * - Dependency injection for serial communication
  * - Thread-safe operations (when used with proper locking)
  * - Full SCPI command support
+ * - Generic PowerSupply interface compliance
  *
  * Example usage:
  * @code
@@ -162,7 +149,7 @@ struct PowerSupplyStatus {
  * psu.enableOutput(true);
  * @endcode
  */
-class TDKLambdaG30 {
+class TDKLambdaG30 : public PowerSupply::IPowerSupply {
 public:
     /**
      * @brief Construct a new TDKLambdaG30 object
@@ -201,18 +188,18 @@ public:
      * @brief Connect to the power supply
      * @throws G30Exception if connection fails
      */
-    void connect();
+    void connect() override;
 
     /**
      * @brief Disconnect from the power supply
      */
-    void disconnect();
+    void disconnect() override;
 
     /**
      * @brief Check if connected
      * @return true if connected, false otherwise
      */
-    bool isConnected() const;
+    bool isConnected() const override;
 
     // ==================== Basic Control ====================
 
@@ -221,43 +208,46 @@ public:
      * @param enable true to enable, false to disable
      * @throws G30Exception on communication error
      */
-    void enableOutput(bool enable);
+    void enableOutput(bool enable) override;
 
     /**
      * @brief Get output state
      * @return true if enabled, false if disabled
      * @throws G30Exception on communication error
      */
-    bool isOutputEnabled() const;
+    bool isOutputEnabled() const override;
 
     /**
      * @brief Reset the power supply to default state
      * @throws G30Exception on communication error
      */
-    void reset();
+    void reset() override;
 
     // ==================== Voltage Control ====================
 
     /**
      * @brief Set output voltage
      * @param voltage Voltage in volts
+     * @param channel Channel number (ignored for single-channel G30, default: 1)
      * @throws G30Exception if voltage is out of range or communication fails
      */
-    void setVoltage(double voltage);
+    void setVoltage(double voltage, int channel = 1) override;
 
     /**
      * @brief Get set voltage value
+     * @param channel Channel number (ignored for single-channel G30, default: 1)
      * @return Voltage in volts
      * @throws G30Exception on communication error
      */
-    double getVoltage() const;
+    double getVoltage(int channel = 1) const override;
 
     /**
      * @brief Measure actual output voltage
+     * @param channel Channel number (ignored for single-channel G30, default: 1)
      * @return Measured voltage in volts
      * @throws G30Exception on communication error
      */
-    double measureVoltage() const;
+    double measureVoltage(int channel = 1) const override;
 
     /**
      * @brief Set voltage with ramp rate
@@ -272,23 +262,26 @@ public:
     /**
      * @brief Set current limit
      * @param current Current in amperes
+     * @param channel Channel number (ignored for single-channel G30, default: 1)
      * @throws G30Exception if current is out of range or communication fails
      */
-    void setCurrent(double current);
+    void setCurrent(double current, int channel = 1) override;
 
     /**
      * @brief Get set current limit
+     * @param channel Channel number (ignored for single-channel G30, default: 1)
      * @return Current in amperes
      * @throws G30Exception on communication error
      */
-    double getCurrent() const;
+    double getCurrent(int channel = 1) const override;
 
     /**
      * @brief Measure actual output current
+     * @param channel Channel number (ignored for single-channel G30, default: 1)
      * @return Measured current in amperes
      * @throws G30Exception on communication error
      */
-    double measureCurrent() const;
+    double measureCurrent(int channel = 1) const override;
 
     /**
      * @brief Set current with ramp rate
@@ -302,17 +295,19 @@ public:
 
     /**
      * @brief Measure output power
+     * @param channel Channel number (ignored for single-channel G30, default: 1)
      * @return Power in watts
      * @throws G30Exception on communication error
      */
-    double measurePower() const;
+    double measurePower(int channel = 1) const override;
 
     /**
      * @brief Set over-voltage protection level
      * @param voltage OVP level in volts
+     * @param channel Channel number (ignored for single-channel G30, default: 1)
      * @throws G30Exception on error
      */
-    void setOverVoltageProtection(double voltage);
+    void setOverVoltageProtection(double voltage, int channel = 1) override;
 
     /**
      * @brief Get over-voltage protection level
@@ -325,7 +320,7 @@ public:
      * @brief Clear protection faults
      * @throws G30Exception on error
      */
-    void clearProtection();
+    void clearProtection() override;
 
     // ==================== Status and Information ====================
 
@@ -334,14 +329,33 @@ public:
      * @return ID string (manufacturer, model, serial, firmware)
      * @throws G30Exception on communication error
      */
-    std::string getIdentification() const;
+    std::string getIdentification() const override;
 
     /**
      * @brief Get detailed status
+     * @param channel Channel number (ignored for single-channel G30, default: 1)
      * @return PowerSupplyStatus structure
      * @throws G30Exception on communication error
      */
-    PowerSupplyStatus getStatus() const;
+    PowerSupplyStatus getStatus(int channel = 1) const override;
+
+    /**
+     * @brief Get power supply capabilities
+     * @return PowerSupplyCapabilities structure
+     */
+    PowerSupplyCapabilities getCapabilities() const override;
+
+    /**
+     * @brief Get vendor
+     * @return Vendor enumeration
+     */
+    Vendor getVendor() const override;
+
+    /**
+     * @brief Get model name
+     * @return Model string
+     */
+    std::string getModel() const override;
 
     /**
      * @brief Check for errors in error queue
@@ -382,7 +396,7 @@ public:
      * @return Response from device
      * @throws G30Exception on communication error
      */
-    std::string sendCommand(const std::string& command);
+    std::string sendCommand(const std::string& command) override;
 
     /**
      * @brief Send raw SCPI query
@@ -390,7 +404,7 @@ public:
      * @return Response from device
      * @throws G30Exception on communication error
      */
-    std::string sendQuery(const std::string& query) const;
+    std::string sendQuery(const std::string& query) const override;
 
     /**
      * @brief Set custom error handler callback

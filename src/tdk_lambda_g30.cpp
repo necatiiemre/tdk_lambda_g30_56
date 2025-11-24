@@ -588,7 +588,10 @@ void TDKLambdaG30::reset() {
     outputEnabled_ = false;
 }
 
-void TDKLambdaG30::setVoltage(double voltage) {
+void TDKLambdaG30::setVoltage(double voltage, int channel) {
+    // G30 is single-channel, ignore channel parameter
+    (void)channel;
+
     validateVoltage(voltage);
 
     if (!isConnected()) {
@@ -603,7 +606,10 @@ void TDKLambdaG30::setVoltage(double voltage) {
     std::this_thread::sleep_for(std::chrono::milliseconds(50));
 }
 
-double TDKLambdaG30::getVoltage() const {
+double TDKLambdaG30::getVoltage(int channel) const {
+    // G30 is single-channel, ignore channel parameter
+    (void)channel;
+
     if (!isConnected()) {
         throw G30Exception("Not connected to device");
     }
@@ -612,7 +618,10 @@ double TDKLambdaG30::getVoltage() const {
     return parseNumericResponse(response);
 }
 
-double TDKLambdaG30::measureVoltage() const {
+double TDKLambdaG30::measureVoltage(int channel) const {
+    // G30 is single-channel, ignore channel parameter
+    (void)channel;
+
     if (!isConnected()) {
         throw G30Exception("Not connected to device");
     }
@@ -642,7 +651,10 @@ void TDKLambdaG30::setVoltageWithRamp(double voltage, double rampRate) {
     setVoltage(voltage);
 }
 
-void TDKLambdaG30::setCurrent(double current) {
+void TDKLambdaG30::setCurrent(double current, int channel) {
+    // G30 is single-channel, ignore channel parameter
+    (void)channel;
+
     validateCurrent(current);
 
     if (!isConnected()) {
@@ -657,7 +669,10 @@ void TDKLambdaG30::setCurrent(double current) {
     std::this_thread::sleep_for(std::chrono::milliseconds(50));
 }
 
-double TDKLambdaG30::getCurrent() const {
+double TDKLambdaG30::getCurrent(int channel) const {
+    // G30 is single-channel, ignore channel parameter
+    (void)channel;
+
     if (!isConnected()) {
         throw G30Exception("Not connected to device");
     }
@@ -666,7 +681,10 @@ double TDKLambdaG30::getCurrent() const {
     return parseNumericResponse(response);
 }
 
-double TDKLambdaG30::measureCurrent() const {
+double TDKLambdaG30::measureCurrent(int channel) const {
+    // G30 is single-channel, ignore channel parameter
+    (void)channel;
+
     if (!isConnected()) {
         throw G30Exception("Not connected to device");
     }
@@ -696,7 +714,10 @@ void TDKLambdaG30::setCurrentWithRamp(double current, double rampRate) {
     setCurrent(current);
 }
 
-double TDKLambdaG30::measurePower() const {
+double TDKLambdaG30::measurePower(int channel) const {
+    // G30 is single-channel, ignore channel parameter
+    (void)channel;
+
     if (!isConnected()) {
         throw G30Exception("Not connected to device");
     }
@@ -706,7 +727,10 @@ double TDKLambdaG30::measurePower() const {
     return voltage * current;
 }
 
-void TDKLambdaG30::setOverVoltageProtection(double voltage) {
+void TDKLambdaG30::setOverVoltageProtection(double voltage, int channel) {
+    // G30 is single-channel, ignore channel parameter
+    (void)channel;
+
     if (!isConnected()) {
         throw G30Exception("Not connected to device");
     }
@@ -745,7 +769,10 @@ std::string TDKLambdaG30::getIdentification() const {
     return sendQuery("*IDN?");
 }
 
-PowerSupplyStatus TDKLambdaG30::getStatus() const {
+PowerSupplyStatus TDKLambdaG30::getStatus(int channel) const {
+    // G30 is single-channel, ignore channel parameter
+    (void)channel;
+
     if (!isConnected()) {
         throw G30Exception("Not connected to device");
     }
@@ -777,6 +804,28 @@ std::string TDKLambdaG30::checkError() const {
     }
 
     return sendQuery("SYST:ERR?");
+}
+
+PowerSupplyCapabilities TDKLambdaG30::getCapabilities() const {
+    PowerSupplyCapabilities caps;
+    caps.maxVoltage = maxVoltage_;
+    caps.maxCurrent = maxCurrent_;
+    caps.maxPower = maxVoltage_ * maxCurrent_;
+    caps.numberOfChannels = 1;  // G30 is single channel
+    caps.supportsRemoteSensing = false;  // G30 doesn't support remote sensing
+    caps.supportsOVP = true;
+    caps.supportsOCP = true;
+    caps.supportsOPP = false;
+    caps.supportsSequencing = false;
+    return caps;
+}
+
+Vendor TDKLambdaG30::getVendor() const {
+    return Vendor::TDK_LAMBDA;
+}
+
+std::string TDKLambdaG30::getModel() const {
+    return "G30";
 }
 
 void TDKLambdaG30::setMaxVoltage(double maxVoltage) {

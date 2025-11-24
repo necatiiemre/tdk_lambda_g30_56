@@ -2,13 +2,15 @@
 
 Professional C++ library for controlling TDK Lambda G30 series programmable power supplies via **Serial (RS232/USB)** or **Ethernet (TCP/IP)** communication.
 
+**🆕 Generic Architecture**: Bu kütüphane artık **generic bir yapıya** sahip ve farklı üreticilerin güç kaynaklarını destekleyebilir! Detaylar için [ARCHITECTURE.md](ARCHITECTURE.md) dosyasına bakın.
+
 ## Features
 
+- **Generic & Extensible**: Supports multiple PSU vendors through `IPowerSupply` interface
 - **Dual Communication Support**: Serial port (RS232/USB) and Ethernet (TCP/IP)
 - **Modern C++ Design**: Clean, professional C++14/17 implementation
 - **RAII Compliant**: Automatic resource management
 - **Exception-Based Error Handling**: Robust error management
-- **Generic and Extensible**: Easy to adapt and extend
 - **Full SCPI Support**: Direct access to SCPI commands
 - **Safety Features**: Built-in voltage and current limits
 - **Cross-Platform**: Works on Linux and Windows
