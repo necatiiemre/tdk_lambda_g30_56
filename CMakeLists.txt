@@ -37,6 +37,10 @@ target_link_libraries(tdk_lambda_g30_shared pthread)
 add_executable(test examples/test.cpp)
 target_link_libraries(test tdk_lambda_g30_static)
 
+# Comprehensive test program (all functions)
+add_executable(comprehensive_test examples/comprehensive_test.cpp)
+target_link_libraries(comprehensive_test tdk_lambda_g30_static)
+
 # Installation rules
 install(TARGETS tdk_lambda_g30_static tdk_lambda_g30_shared
     ARCHIVE DESTINATION lib
@@ -59,5 +63,6 @@ message(STATUS "Targets:")
 message(STATUS "  - tdk_lambda_g30_static (static library)")
 message(STATUS "  - tdk_lambda_g30_shared (shared library)")
 message(STATUS "  - test (test program)")
+message(STATUS "  - comprehensive_test (comprehensive test program)")
 message(STATUS "==========================================")
 message(STATUS "")
