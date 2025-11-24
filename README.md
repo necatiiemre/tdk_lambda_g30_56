@@ -40,13 +40,14 @@ Professional C++ library for controlling TDK Lambda G30 series programmable powe
 ```
 tdk_lambda_g30_56/
 ├── include/
-│   └── tdk_lambda_g30.h       # Main header file
+│   ├── power_supply_interface.h  # Generic PSU interface
+│   └── tdk_lambda_g30.h          # TDK Lambda G30 implementation
 ├── src/
-│   └── tdk_lambda_g30.cpp     # Implementation
+│   └── tdk_lambda_g30.cpp        # Implementation
 ├── examples/
-│   └── example_usage.cpp      # Usage examples
-├── CMakeLists.txt             # Build configuration
-└── README.md                  # This file
+│   └── test.cpp                  # Test program
+├── CMakeLists.txt                # Build configuration
+└── README.md                     # This file
 ```
 
 ## Requirements
@@ -71,10 +72,7 @@ make
 
 - `libtdk_lambda_g30.a` - Static library
 - `libtdk_lambda_g30.so` - Shared library
-- `example_usage` - Example program
-- `simple_test` - Simple test program
-- `ethernet_example` - Ethernet examples
-- `test` - User test program
+- `test` - Test program
 
 ## Quick Start
 

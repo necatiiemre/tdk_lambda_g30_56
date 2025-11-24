@@ -33,19 +33,7 @@ set_target_properties(tdk_lambda_g30_shared PROPERTIES OUTPUT_NAME tdk_lambda_g3
 target_link_libraries(tdk_lambda_g30_static pthread)
 target_link_libraries(tdk_lambda_g30_shared pthread)
 
-# Example executables
-add_executable(example_usage examples/example_usage.cpp)
-target_link_libraries(example_usage tdk_lambda_g30_static)
-
-# Simple test program for Ubuntu
-add_executable(simple_test examples/simple_test.cpp)
-target_link_libraries(simple_test tdk_lambda_g30_static)
-
-# Ethernet example
-add_executable(ethernet_example examples/ethernet_example.cpp)
-target_link_libraries(ethernet_example tdk_lambda_g30_static)
-
-# User test program
+# Test program
 add_executable(test examples/test.cpp)
 target_link_libraries(test tdk_lambda_g30_static)
 
@@ -70,9 +58,6 @@ message(STATUS "")
 message(STATUS "Targets:")
 message(STATUS "  - tdk_lambda_g30_static (static library)")
 message(STATUS "  - tdk_lambda_g30_shared (shared library)")
-message(STATUS "  - example_usage (comprehensive examples)")
-message(STATUS "  - simple_test (simple test for Ubuntu)")
-message(STATUS "  - ethernet_example (Ethernet/TCP-IP examples)")
-message(STATUS "  - test (user test program)")
+message(STATUS "  - test (test program)")
 message(STATUS "==========================================")
 message(STATUS "")
