@@ -13,23 +13,16 @@
 #include <thread>
 #include <chrono>
 
-#ifdef _WIN32
-    #include <windows.h>
-    #include <winsock2.h>
-    #include <ws2tcpip.h>
-    #pragma comment(lib, "ws2_32.lib")
-#else
-    #include <fcntl.h>
-    #include <unistd.h>
-    #include <termios.h>
-    #include <cstring>
-    #include <sys/socket.h>
-    #include <netinet/in.h>
-    #include <arpa/inet.h>
-    #include <netdb.h>
-    #include <errno.h>
-    #include <poll.h>
-#endif
+// Linux/POSIX includes
+#include <fcntl.h>
+#include <unistd.h>
+#include <cstring>
+#include <sys/socket.h>
+#include <netinet/in.h>
+#include <arpa/inet.h>
+#include <netdb.h>
+#include <errno.h>
+#include <poll.h>
 
 namespace TDKLambda {
 
@@ -42,19 +35,10 @@ class TcpPort : public ICommunication {
 public:
     TcpPort(const G30Config& config)
         : config_(config), isOpen_(false), sockfd_(-1) {
-#ifdef _WIN32
-        WSADATA wsaData;
-        if (WSAStartup(MAKEWORD(2, 2), &wsaData) != 0) {
-            throw G30Exception("Failed to initialize Winsock");
-        }
-#endif
     }
 
     ~TcpPort() override {
         close();
-#ifdef _WIN32
-        WSACleanup();
-#endif
     }
 
     void open() {
@@ -76,15 +60,8 @@ public:
         struct timeval timeout;
         timeout.tv_sec = config_.timeout_ms / 1000;
         timeout.tv_usec = (config_.timeout_ms % 1000) * 1000;
-
-#ifdef _WIN32
-        DWORD tv = config_.timeout_ms;
-        setsockopt(sockfd_, SOL_SOCKET, SO_RCVTIMEO, (const char*)&tv, sizeof(tv));
-        setsockopt(sockfd_, SOL_SOCKET, SO_SNDTIMEO, (const char*)&tv, sizeof(tv));
-#else
         setsockopt(sockfd_, SOL_SOCKET, SO_RCVTIMEO, &timeout, sizeof(timeout));
         setsockopt(sockfd_, SOL_SOCKET, SO_SNDTIMEO, &timeout, sizeof(timeout));
-#endif
 
         // Setup server address
         struct sockaddr_in serverAddr;
@@ -94,13 +71,13 @@ public:
 
         // Convert IP address
         if (inet_pton(AF_INET, config_.ipAddress.c_str(), &serverAddr.sin_addr) <= 0) {
-            closesocket(sockfd_);
+            ::close(sockfd_);
             throw G30Exception("Invalid IP address: " + config_.ipAddress);
         }
 
         // Connect to server
         if (connect(sockfd_, (struct sockaddr*)&serverAddr, sizeof(serverAddr)) < 0) {
-            closesocket(sockfd_);
+            ::close(sockfd_);
             throw G30Exception("Failed to connect to " + config_.ipAddress + ":" +
                              std::to_string(config_.tcpPort));
         }
@@ -113,12 +90,7 @@ public:
             throw G30Exception("TCP port is not open");
         }
 
-#ifdef _WIN32
-        int result = send(sockfd_, data.c_str(), static_cast<int>(data.length()), 0);
-#else
         ssize_t result = send(sockfd_, data.c_str(), data.length(), 0);
-#endif
-
         if (result < 0) {
             throw G30Exception("Failed to send data over TCP");
         }
@@ -143,20 +115,7 @@ public:
                 break;
             }
 
-            // Use poll/select to check for data
-#ifdef _WIN32
-            fd_set readfds;
-            FD_ZERO(&readfds);
-            FD_SET(sockfd_, &readfds);
-
-            struct timeval tv;
-            tv.tv_sec = 0;
-            tv.tv_usec = 10000; // 10ms
-
-            int selectResult = select(0, &readfds, nullptr, nullptr, &tv);
-            if (selectResult > 0) {
-                int bytesRead = recv(sockfd_, buffer, sizeof(buffer) - 1, 0);
-#else
+            // Use poll to check for data
             struct pollfd pfd;
             pfd.fd = sockfd_;
             pfd.events = POLLIN;
@@ -164,7 +123,6 @@ public:
             int pollResult = poll(&pfd, 1, 10); // 10ms timeout
             if (pollResult > 0 && (pfd.revents & POLLIN)) {
                 ssize_t bytesRead = recv(sockfd_, buffer, sizeof(buffer) - 1, 0);
-#endif
                 if (bytesRead > 0) {
                     buffer[bytesRead] = '\0';
                     result += buffer;
@@ -193,7 +151,7 @@ public:
         }
 
         if (sockfd_ >= 0) {
-            closesocket(sockfd_);
+            ::close(sockfd_);
             sockfd_ = -1;
         }
         isOpen_ = false;
@@ -203,14 +161,6 @@ private:
     G30Config config_;
     bool isOpen_;
     int sockfd_;
-
-    void closesocket(int sock) {
-#ifdef _WIN32
-        ::closesocket(sock);
-#else
-        ::close(sock);
-#endif
-    }
 };
 
 // ==================== TDKLambdaG30 Implementation ====================

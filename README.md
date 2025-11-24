@@ -13,7 +13,7 @@ Professional C++ library for controlling TDK Lambda G30 series programmable powe
 - **Exception-Based Error Handling**: Robust error management
 - **Full SCPI Support**: Direct access to SCPI commands
 - **Safety Features**: Built-in voltage and current limits
-- **Cross-Platform**: Works on Linux and Windows
+- **Linux Support**: Optimized for Linux systems
 - **Well-Documented**: Comprehensive API documentation
 
 ## Capabilities
@@ -67,20 +67,14 @@ cmake ..
 make
 ```
 
-### Windows (Visual Studio)
-
-```cmd
-mkdir build
-cd build
-cmake .. -G "Visual Studio 16 2019"
-cmake --build . --config Release
-```
-
 ### Build Outputs
 
 - `libtdk_lambda_g30.a` - Static library
-- `libtdk_lambda_g30.so` (Linux) or `tdk_lambda_g30.dll` (Windows) - Shared library
+- `libtdk_lambda_g30.so` - Shared library
 - `example_usage` - Example program
+- `simple_test` - Simple test program
+- `ethernet_example` - Ethernet examples
+- `test` - User test program
 
 ## Quick Start
 

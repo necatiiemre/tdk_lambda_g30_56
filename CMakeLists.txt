@@ -6,17 +6,8 @@ set(CMAKE_CXX_STANDARD 14)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_CXX_EXTENSIONS OFF)
 
-# Compiler flags
-if(MSVC)
-    add_compile_options(/W4 /WX-)
-else()
-    add_compile_options(-Wall -Wextra -Wpedantic)
-endif()
-
-# Platform-specific settings
-if(WIN32)
-    add_definitions(-D_WIN32_WINNT=0x0601)
-endif()
+# Compiler flags for Linux/GCC
+add_compile_options(-Wall -Wextra -Wpedantic)
 
 # Include directories
 include_directories(${CMAKE_SOURCE_DIR}/include)
@@ -38,11 +29,9 @@ set_target_properties(tdk_lambda_g30_static PROPERTIES OUTPUT_NAME tdk_lambda_g3
 add_library(tdk_lambda_g30_shared SHARED ${LIBRARY_SOURCES} ${LIBRARY_HEADERS})
 set_target_properties(tdk_lambda_g30_shared PROPERTIES OUTPUT_NAME tdk_lambda_g30)
 
-# Platform-specific linking
-if(UNIX AND NOT APPLE)
-    target_link_libraries(tdk_lambda_g30_static pthread)
-    target_link_libraries(tdk_lambda_g30_shared pthread)
-endif()
+# Linux pthread linking
+target_link_libraries(tdk_lambda_g30_static pthread)
+target_link_libraries(tdk_lambda_g30_shared pthread)
 
 # Example executables
 add_executable(example_usage examples/example_usage.cpp)
