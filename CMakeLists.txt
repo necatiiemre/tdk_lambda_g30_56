@@ -48,6 +48,10 @@ endif()
 add_executable(example_usage examples/example_usage.cpp)
 target_link_libraries(example_usage tdk_lambda_g30_static)
 
+# Simple test program for Ubuntu
+add_executable(simple_test examples/simple_test.cpp)
+target_link_libraries(simple_test tdk_lambda_g30_static)
+
 # Installation rules
 install(TARGETS tdk_lambda_g30_static tdk_lambda_g30_shared
     ARCHIVE DESTINATION lib
@@ -69,6 +73,7 @@ message(STATUS "")
 message(STATUS "Targets:")
 message(STATUS "  - tdk_lambda_g30_static (static library)")
 message(STATUS "  - tdk_lambda_g30_shared (shared library)")
-message(STATUS "  - example_usage (example program)")
+message(STATUS "  - example_usage (comprehensive examples)")
+message(STATUS "  - simple_test (simple test for Ubuntu)")
 message(STATUS "==========================================")
 message(STATUS "")
